@@ -1,0 +1,3 @@
+POE::Component::Proxy::MySQL is a MySQL proxy component that you can use to
+add extra functionnalities to your MySQL server(s).
+
