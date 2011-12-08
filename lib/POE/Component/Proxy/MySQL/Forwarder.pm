@@ -3,6 +3,9 @@ package     # ignore CPAN ..
 use Moose;
 use MooseX::MethodAttributes ();
 
+use strict;    # for kwalitee
+use warnings;  # for kwalitee
+
 use Socket;
 use POSIX qw(errno_h);
 use POE qw( Wheel::ReadWrite Wheel::SocketFactory Filter::Stream );
@@ -763,7 +766,15 @@ This is the client and server session.
 
 =item BUILD()
 
-=item run()
+=item client_send_error()
+
+=item client_send_ok()
+
+=item client_send_results()
+
+=item release_client()
+
+=item release_server()
 
 =back
 
@@ -775,7 +786,7 @@ Eriam Schaffter, C<eriam@cpan.org>.
 
 None that I know of.
 
-=head1 COPYRIGHT
+=head1 LICENSE
 
 This program is free software, you can redistribute it and/or modify it
 under the same terms as Perl itself.
