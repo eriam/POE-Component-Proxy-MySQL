@@ -44,14 +44,14 @@ sub BUILD {
    POE::Session->create(
       object_states => [
          $self =>  { 
-            _start         => 'forwarder_start',
-            _stop          => 'forwarder_stop',
-            client_input   => 'forwarder_client_input',
-            client_error   => 'forwarder_client_error',
-            server_connect => 'forwarder_server_connect',
-            server_input   => 'forwarder_server_input',
-            server_error   => 'forwarder_server_error',
-            dispatch_input => 'dispatch_input',  
+            _start         => '_forwarder_start',
+            _stop          => '_forwarder_stop',
+            client_input   => '_forwarder_client_input',
+            client_error   => '_forwarder_client_error',
+            server_connect => '_forwarder_server_connect',
+            server_input   => '_forwarder_server_input',
+            server_error   => '_forwarder_server_error',
+            dispatch_input => '_dispatch_input',  
          },
       ],
       args => [
@@ -67,7 +67,7 @@ sub BUILD {
 }
 
 
-sub forwarder_start {
+sub _forwarder_start {
   my ($self, $heap, $session, $socket, $peer_host, $peer_port, $remote_addr,
     $remote_port)
     = @_[OBJECT, HEAP, SESSION, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5];
@@ -179,7 +179,7 @@ sub forwarder_start {
    
 }
 
-sub forwarder_stop {
+sub _forwarder_stop {
    my $heap = $_[HEAP];
   
    $heap->{server_heap}->{active_connections}->{$$}--;
@@ -187,7 +187,7 @@ sub forwarder_stop {
 #   print "[$heap->{log}] Closing redirection session in pid $$\n";
 }
 
-sub forwarder_client_input {
+sub _forwarder_client_input {
    my ($self, $heap, $session, $kernel, $input) = 
       @_[OBJECT, HEAP, SESSION, KERNEL, ARG0];
 
@@ -256,7 +256,7 @@ sub forwarder_client_input {
 }
 
 
-sub forwarder_client_error {
+sub _forwarder_client_error {
   my ($self, $kernel, $heap, $operation, $errnum, $errstr) =
     @_[OBJECT, KERNEL, HEAP, ARG0, ARG1, ARG2];
 
@@ -283,7 +283,7 @@ sub forwarder_client_error {
 
 }
 
-sub forwarder_server_connect {
+sub _forwarder_server_connect {
    my ($self, $kernel, $session, $heap, $socket) 
       = @_[OBJECT, KERNEL, SESSION, HEAP, ARG0];
    
@@ -308,7 +308,7 @@ sub forwarder_server_connect {
    $heap->{queue} = [];
 }
 
-sub forwarder_server_input {
+sub _forwarder_server_input {
    my ($self, $heap, $input) = @_[OBJECT, HEAP, ARG0];
 
    $self->server_input_data($input);
@@ -316,7 +316,7 @@ sub forwarder_server_input {
 
 }
 
-sub forwarder_server_error {
+sub _forwarder_server_error {
   my ($kernel, $heap, $operation, $errnum, $errstr) =
     @_[KERNEL, HEAP, ARG0, ARG1, ARG2];
 
@@ -324,7 +324,7 @@ sub forwarder_server_error {
   delete $heap->{server_wheel};
 }
 
-sub server_send_query {
+sub _server_send_query {
    my ($self, $opt) = (@_);
    
    my $wheel = $self->server_wheel;
@@ -360,7 +360,7 @@ sub server_send_query {
    
 }
 
-sub dispatch_input {
+sub _dispatch_input {
    my ($self, $heap, $session, $kernel, $input) = 
       @_[OBJECT, HEAP, SESSION, KERNEL, ARG0];
    
@@ -435,7 +435,7 @@ sub dispatch_input {
 }
 
 
-sub read_resultset {
+sub _read_resultset {
    my ($self, $input) = (@_);
    
    my $rc;
@@ -751,5 +751,35 @@ sub _send_rows {
 }
 
 
+=head1 NAME
+
+POE::Component::Proxy::MySQL::Forwarder - A POE MySQL proxy
+
+=head1 DESCRIPTION
+
+This is the client and server session.
+
+=over 4
+
+=item BUILD()
+
+=item run()
+
+=back
+
+=head1 AUTHORS
+
+Eriam Schaffter, C<eriam@cpan.org>.
+
+=head1 BUGS
+
+None that I know of.
+
+=head1 COPYRIGHT
+
+This program is free software, you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=cut
 
 1;
