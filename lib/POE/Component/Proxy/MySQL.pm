@@ -48,15 +48,15 @@ sub BUILD {
    POE::Session->create(
      object_states => [
          $self =>  { 
-            _start         => 'server_start',
-            _stop          => 'server_stop',
-            accept_success => 'server_accept_success',
-            accept_failure => 'server_accept_failure',   
-            got_sig_int    => 'got_sig_int',
-            got_sig_child  => 'got_sig_child',
+            _start         => '_server_start',
+            _stop          => '_server_stop',
+            accept_success => '_server_accept_success',
+            accept_failure => '_server_accept_failure',   
+            got_sig_int    => '_got_sig_int',
+            got_sig_child  => '_got_sig_child',
             _do_fork       => '_do_fork',   
-            restart        => 'restart',    
-            ticks          => 'ticks',   
+            restart        => '_restart',    
+            ticks          => '_ticks',   
          }
      ],
       args => [$self->src_address, $self->src_port, $self->dst_address, $self->dst_port]
@@ -67,7 +67,7 @@ sub BUILD {
 
 
 
-sub server_start {
+sub _server_start {
    my ($self, $heap, $session, $local_addr, $local_port, $remote_addr, $remote_port) =
     @_[OBJECT, HEAP, SESSION, ARG0, ARG1, ARG2, ARG3];
       
@@ -96,7 +96,7 @@ sub server_start {
 }
 
 
-sub ticks {
+sub _ticks {
    my ($self, $heap, $kernel) = @_[OBJECT, HEAP, KERNEL];
    
    if ($heap->{is_a_child}) {
@@ -115,21 +115,21 @@ sub ticks {
 
 }
 
-sub restart {
+sub _restart {
    my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
    
    $kernel->delay_set('tick', 60);
 }
 
 
-sub got_sig_int {
+sub _got_sig_int {
    my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
    
   delete $heap->{server};
   $kernel->sig_handled();
 }
 
-sub got_sig_child {
+sub _got_sig_child {
   my ($kernel, $heap, $child_pid) = @_[KERNEL, HEAP, ARG1];
 
   return unless delete $heap->{children}->{$child_pid};
@@ -170,12 +170,12 @@ sub _do_fork {
    }
 }
 
-sub server_stop {
+sub _server_stop {
    my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
    
 }
 
-sub server_accept_success {
+sub _server_accept_success {
    my ($self, $heap, $socket, $peer_addr, $peer_port) = @_[OBJECT, HEAP, ARG0, ARG1, ARG2];
    
    my $forwarder = POE::Component::Proxy::MySQL::Forwarder->new({
@@ -190,7 +190,7 @@ sub server_accept_success {
 
 }
 
-sub server_accept_failure {
+sub _server_accept_failure {
   my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
 
   delete $heap->{server_wheel} if $errnum == ENFILE or $errnum == EMFILE;
@@ -227,18 +227,50 @@ Then in a perl script you can instantiate your new server
 In the MyMySQL namespace you can add roles which will act as handlers
 for your trapped queries:
 
-   package MyMySQL::Fortune;
+   package MyMySQL::Hello;
+   
+   use POE;
    use MooseX::MethodAttributes::Role;
    
-   sub fortune : Regexp('qr{fortune}io') {
-      my ($self) = @_;
-      
-   	my $fortune = `fortune`;
-   	chomp($fortune);
-   
-      $self->send_results(['fortune'],[[$fortune]]);
+   sub fortune : Regexp('qr{Hello}io') {
+      my ($self) = $_[OBJECT];
+         
+      $self->client_send_results(['Hello'],[['World']]);
    
    }
+
+
+Then run your proxy
+
+   perl mymysql.pl --src_address localhost --src_port 23306 --dst_address localhost --dst_port 3306
+
+
+and finally
+
+   [eriam@fbsd ~]# mysql -u root -pxxx --host localhost --port 23306
+   Welcome to the MySQL monitor.  Commands end with ; or \g.
+   Your MySQL connection id is 6
+   Server version: 5.1.40 Source distribution
+   
+   Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+   
+   mysql> hello();
+   +-------+
+   | Hello |
+   +-------+
+   | World |
+   +-------+
+   1 row in set (0,10 sec)
+
+=over 4
+
+=item DEBUG()
+
+=item BUILD()
+
+=item run()
+
+=back
 
 =head1 AUTHORS
 
