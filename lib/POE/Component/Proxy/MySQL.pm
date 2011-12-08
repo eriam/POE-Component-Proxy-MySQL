@@ -4,6 +4,8 @@ use MooseX::MethodAttributes;
 
 our $VERSION = "0.01";
 
+use strict;    # for kwalitee
+use warnings;  # for kwalitee
 
 with 'MooseX::Getopt';
 
@@ -280,7 +282,7 @@ Eriam Schaffter, C<eriam@cpan.org>.
 
 None that I know of.
 
-=head1 COPYRIGHT
+=head1 LICENSE
 
 This program is free software, you can redistribute it and/or modify it
 under the same terms as Perl itself.
