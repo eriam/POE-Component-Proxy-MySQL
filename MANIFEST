@@ -1,5 +1,4 @@
 .releaserc
-.gitignore
 Changes
 examples/lib/MyMySQL.pm
 examples/lib/MyMySQL/Hello.pm
