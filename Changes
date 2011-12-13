@@ -1,5 +1,8 @@
 Revision history for POE-Component-Proxy-MySQL
 
+0.01 - Tue Dec 13 07:48:55 2011
+	First release with Module-Release
+
 0.01 - Tue Dec 13 07:43:25 2011
 
 	First release of POE MySQL Proxy
