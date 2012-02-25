@@ -2,7 +2,7 @@ package POE::Component::Proxy::MySQL;
 use Moose;
 use MooseX::MethodAttributes;
 
-our $VERSION = "0.01";
+our $VERSION = "0.03";
 
 use strict;    # for kwalitee
 use warnings;  # for kwalitee
