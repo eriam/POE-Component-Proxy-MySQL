@@ -46,6 +46,8 @@ sub BUILD {
    $self->processes($self->processes - 1);
    $self->processes(1) if $self->processes < 1;
    
+   print "Listen on ".$self->src_address.":".$self->src_port."\n";
+   print "Redirects to ".$self->dst_address.":".$self->dst_port."\n";
 
    POE::Session->create(
      object_states => [
