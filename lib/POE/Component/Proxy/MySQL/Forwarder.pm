@@ -31,9 +31,11 @@ has 'server_request_callback' => (is => 'rw', isa => 'Str');
 
 my @dispatchers;
 
+my $max_connections_per_child = 256;
 
 sub BUILD {
    my ($self, $opt) = @_;
+
 
    $self->server_heap($opt->{heap});
    
@@ -54,14 +56,7 @@ sub BUILD {
             dispatch_input => 'dispatch_input',  
          },
       ],
-      args => [
-         $opt->{socket}, 
-         $opt->{peer_addr}, 
-         $opt->{peer_port}, 
-         $opt->{remote_addr}, 
-         $opt->{remote_port}, 
-         $opt->{heap}
-      ]
+      args => [$opt->{socket}, $opt->{peer_addr}, $opt->{peer_port}, $opt->{remote_addr}, $opt->{remote_port}, $opt->{heap}]
    );
 
 }
@@ -72,12 +67,15 @@ sub forwarder_start {
     $remote_port)
     = @_[OBJECT, HEAP, SESSION, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5];
    
+#   print '$self->namespace = '.$self->namespace."\n";
+   
    $heap->{log}                  = $session->ID;
    $peer_host                    = inet_ntoa($peer_host);
    $heap->{peer_host}            = $peer_host;
    $heap->{peer_port}            = $peer_port;
    $heap->{remote_addr}          = $remote_addr;
    $heap->{remote_port}          = $remote_port;
+#   $heap->{server_heap}          = $server_heap;
    
    $self->heap($heap);
    
@@ -87,9 +85,11 @@ sub forwarder_start {
    
    foreach my $module (@modules) {
       next unless $module;
+      
+#      next unless $module =~ /HelloWorld/;
 
-      eval('use '.$module);
-      die $@ if $@;
+      eval('use '.$module); # to be replaced some day
+         die $@ if $@;
 
 #    print "$module \n";
          
@@ -170,6 +170,11 @@ sub forwarder_start {
       FailureEvent  => 'server_error',
    );
    
+
+#   $heap->{connections_per_child}->{$$}++;
+#   $heap->{active_connections}->{$$}++;   
+#   
+
    my $server_heap = $self->server_heap;
 #   print "+ $$ connections_per_child ".$server_heap->{connections_per_child}->{$$}." \n";
 #   print "+ $$ active_connections ".$server_heap->{active_connections}->{$$}." \n";
@@ -183,6 +188,16 @@ sub forwarder_stop {
    my $heap = $_[HEAP];
   
    $heap->{server_heap}->{active_connections}->{$$}--;
+
+#   if (defined ($heap->{server_heap}->{connections_per_child}->{$$})) {
+#      
+#      if ($heap->{server_heap}->{connections_per_child}->{$$} >= $max_connections_per_child
+#            && $heap->{server_heap}->{is_a_child}) {
+#         print "KILL \n";
+#         kill 'INT', $$;
+#      }
+#      
+#   }  
 
 #   print "[$heap->{log}] Closing redirection session in pid $$\n";
 }
@@ -208,9 +223,10 @@ sub forwarder_client_input {
       if ($command == COM_QUERY) {
          
          my $query  = $input;
-         $query = substr($query, 1);
-         
-#         print "query $query in pid $$\n";
+         $query = substr($query, 5);
+         chomp($query);
+
+#         print "query $query - packet_count ".$self->packet_count." \n";
       
          my $event;
          my @placeholders;
@@ -232,7 +248,7 @@ sub forwarder_client_input {
          }
          
          if ($dispatcher->{class} && $dispatcher->{method}) {
-            print "$query = ".$dispatcher->{class}."->".$dispatcher->{method}."\n";
+#            print "$query = ".$dispatcher->{class}."->".$dispatcher->{method}."\n";
 
             my $specific_method = $dispatcher->{class};
             $specific_method =~ s/::/_/g;
@@ -242,7 +258,7 @@ sub forwarder_client_input {
             $kernel->call($_[SESSION], $specific_method, $query, \@placeholders);
                         
             print $@ if $@;
-   
+            
          }
          else {
             $self->release_client;
@@ -260,6 +276,14 @@ sub forwarder_client_error {
   my ($self, $kernel, $heap, $operation, $errnum, $errstr) =
     @_[OBJECT, KERNEL, HEAP, ARG0, ARG1, ARG2];
 
+#  if ($errnum) {
+#    print("[$heap->{log}] Client connection encountered ",
+#      "$operation error $errnum: $errstr\n");
+#  }
+#  else {
+#    print "[$heap->{log}] Client closed connection.\n";
+#  }
+
    my $server_heap = $self->server_heap;
    $server_heap->{active_connections}->{$$}--;   
    
@@ -271,24 +295,35 @@ sub forwarder_client_error {
   delete $heap->{client_wheel};
   delete $heap->{server_wheel};
 
-   if ($server_heap->{active_connections}->{$$} <= 0) {
-      
-      if ($server_heap->{connections_per_child}->{$$} >= $server_heap->{conn_per_child}
-            && $server_heap->{is_a_child}) {
+  $self->client_wheel(undef);
+  $self->server_wheel(undef);
+
+
+
+#   if ($server_heap->{active_connections}->{$$} <= 0 
+#      && $heap->{server_heap}->{connections_per_child}->{$$} >= $max_connections_per_child) {
+#      
+#      if ($server_heap->{is_a_child}) {
 #         print "KILL ".$$."\n";
-         kill 'INT', $$;
-      }
-      
-   }
+#         kill 'INT', $$;
+#      }
+#      
+#   }
 
 }
 
 sub forwarder_server_connect {
-   my ($self, $kernel, $session, $heap, $socket) 
-      = @_[OBJECT, KERNEL, SESSION, HEAP, ARG0];
+   my ($self, $kernel, $session, $heap, $socket) = @_[OBJECT, KERNEL, SESSION, HEAP, ARG0];
+   
+#   print "+ $$ forwarder_server_connect \n";   
    
    my ($local_port, $local_addr) = unpack_sockaddr_in(getsockname($socket));
    $local_addr = inet_ntoa($local_addr);
+#   print(
+#      "[$heap->{log}] Established forward from local ",
+#      "$local_addr:$local_port to remote ",
+#      $heap->{remote_addr}, ':', $heap->{remote_port}, "\n"
+#   );
    
    $heap->{server_wheel} = POE::Wheel::ReadWrite->new(
       Handle     => $socket,
@@ -312,6 +347,7 @@ sub forwarder_server_input {
    my ($self, $heap, $input) = @_[OBJECT, HEAP, ARG0];
 
    $self->server_input_data($input);
+   
    $self->release_server;
 
 }
@@ -320,6 +356,14 @@ sub forwarder_server_error {
   my ($kernel, $heap, $operation, $errnum, $errstr) =
     @_[KERNEL, HEAP, ARG0, ARG1, ARG2];
 
+#  if ($errnum) {
+#    print("[$heap->{log}] Server connection encountered ",
+#      "$operation error $errnum: $errstr\n");
+#  }
+#  else {
+#    print "[$heap->{log}] Server closed connection.\n";
+#  }
+
   delete $heap->{client_wheel};
   delete $heap->{server_wheel};
 }
@@ -327,10 +371,13 @@ sub forwarder_server_error {
 sub server_send_query {
    my ($self, $opt) = (@_);
    
+#   $self->release_client;
+   
    my $wheel = $self->server_wheel;
    
 #   print "server_send_query ".$opt->{query}." \n";
-   
+#   print "packet_count ".$self->packet_count." \n";
+         
    unless (exists($opt->{callback})) {
      $opt->{callback} = '';
    }
@@ -371,8 +418,7 @@ sub dispatch_input {
       (@resultset, $result) = $self->read_resultset($self->server_input_data.$input);
       
       if ($result->{'field_count'}) {
-         
-#         print "dispatch_input \n";
+         # OK
          
          $heap->{'input'} = $input;
          
@@ -404,8 +450,6 @@ sub dispatch_input {
    else {
       
       (@resultset, $result) = $self->read_resultset($self->server_input_data.$input);
-
-#      print "dispatch_input \n";
       
       $heap->{'input'} = $input;
       
@@ -455,6 +499,8 @@ sub read_resultset {
       if ($rc > 0) {         
          if ($packet->{field_count}) {
             
+#            print Dumper($packet);
+            
             $field_count = $packet->{field_count};
             
             $input = substr($input, $packet->{packet_size});
@@ -471,9 +517,14 @@ sub read_resultset {
                      $input = substr($input, $packet->{packet_size});
                   }
                }
+#               else {
+#                  print Dumper($rc);
+#               }
             }
             
             push @resultset, \@headers;
+            
+#            print Dumper(@headers);
             
             $input = substr($input, 9);
        
@@ -501,22 +552,39 @@ sub read_resultset {
                      
                   }
                }
+#               else {
+#                  print "mysql_decode_result error\n";
+#                  print Dumper($packet);
+#               }
             }
             
             
          }
          elsif ($packet->{error}) {
+            print "mysql_decode_result error\n";
+            print Dumper($packet);
             $self->client_send_error($packet->{message});
          }
          else {
+#            print "mysql_decode_result error\n";
+#            print Dumper($packet);
             return (@resultset, $packet);
          }
       }
+      else {
+#         print "mysql_decode_result error\n";
+#         print Dumper($packet);
+#         return (@resultset, $packet);
+      }
    }  
    else {
+#      print "mysql_decode_result error\n";
+#      print Dumper($packet);
       return (@resultset, $packet);
    } 
-      
+   
+#   print Dumper(@resultset);
+   
    return (@resultset, {
       field_count => $field_count,
    });

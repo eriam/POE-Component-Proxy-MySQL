@@ -4,16 +4,15 @@ use MooseX::MethodAttributes;
 
 our $VERSION = "0.01";
 
-
-with 'MooseX::Getopt';
-
 use Socket;
 use POSIX qw(errno_h);
 use MySQL::Packet qw(:encode :decode :COM :CLIENT :SERVER);
 use Data::Dumper;
 use Module::Find;
 use POE qw( Wheel::ReadWrite Wheel::SocketFactory Filter::Stream );
+
 use POE::Component::Proxy::MySQL::Forwarder;
+
 
 
 has 'src_address'    => (is => 'rw', isa => 'Str');
@@ -42,6 +41,7 @@ sub BUILD {
    
    $self->processes(4)              unless $self->processes;
    $self->processes($self->processes - 1);
+   
    $self->processes(1) if $self->processes < 1;
    
 
@@ -70,7 +70,9 @@ sub BUILD {
 sub server_start {
    my ($self, $heap, $session, $local_addr, $local_port, $remote_addr, $remote_port) =
     @_[OBJECT, HEAP, SESSION, ARG0, ARG1, ARG2, ARG3];
-      
+   
+   print "+ Redirecting $local_addr:$local_port to $remote_addr:$remote_port\n";
+   
    $heap->{local_addr}     = $local_addr;
    $heap->{local_port}     = $local_port;
    $heap->{remote_addr}    = $remote_addr;
@@ -91,8 +93,11 @@ sub server_start {
    $heap->{pid} = $$;
    
    if ($heap->{processes} > 0) {
+#      print "+ Will fork ".$heap->{processes}." processes\n";
       $_[KERNEL]->yield('_do_fork');
    }
+  
+#   $_[KERNEL]->yield('ticks');
 }
 
 
@@ -103,11 +108,13 @@ sub ticks {
       
       if ($heap->{connections_per_child}->{$$} >= $heap->{conn_per_child}
             && $heap->{is_a_child}) {
+#         print "pause_accept in $$ \n";
          $heap->{can_fork} = 1;
          $kernel->yield('_do_fork');
          $heap->{server_wheel}->pause_accept;
       }
       else {
+#         print "+ $$ ticks \n";
           $kernel->delay_set('ticks', 10);
       }
       
@@ -116,17 +123,15 @@ sub ticks {
 }
 
 sub restart {
-   my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
    
-   $kernel->delay_set('tick', 60);
+   $_[KERNEL]->delay_set('tick', 60);
 }
 
 
 sub got_sig_int {
-   my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
-   
-  delete $heap->{server};
-  $kernel->sig_handled();
+#  warn "Server $$ received SIGINT.\n";
+  delete $_[HEAP]->{server};
+  $_[KERNEL]->sig_handled();
 }
 
 sub got_sig_child {
@@ -134,6 +139,7 @@ sub got_sig_child {
 
   return unless delete $heap->{children}->{$child_pid};
 
+#  warn "Server $$ reaped child $child_pid.\n";
   $kernel->yield("_do_fork") if exists $_[HEAP]->{server_wheel};
 }
 
@@ -151,6 +157,7 @@ sub _do_fork {
       }
       
       if ($pid) {
+#         print "+ Server $$ forked child $pid\n";
          $heap->{server_wheel}->pause_accept;
          $heap->{children}->{$pid} = 1;
          $kernel->sig_child($pid, "got_sig_child");
@@ -165,19 +172,25 @@ sub _do_fork {
       $kernel->has_forked();
       $heap->{is_a_child} = 1;
       $heap->{children}   = {};
-      $kernel->yield('ticks');
+      $_[KERNEL]->yield('ticks');
       return;
    }
 }
 
 sub server_stop {
-   my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
-   
+  my $heap = $_[HEAP];
+  
+#  print(
+#    "- Redirection from $heap->{local_addr}:$heap->{local_port} to ",
+#    "$heap->{remote_addr}:$heap->{remote_port} has stopped.\n"
+#  );
 }
 
 sub server_accept_success {
    my ($self, $heap, $socket, $peer_addr, $peer_port) = @_[OBJECT, HEAP, ARG0, ARG1, ARG2];
    
+#   print "+ Connections number ".$heap->{connections_per_child}->{$$}." in pid ".$$." \n";
+
    my $forwarder = POE::Component::Proxy::MySQL::Forwarder->new({
       socket         => $socket, 
       peer_addr      => $peer_addr, 
@@ -193,6 +206,12 @@ sub server_accept_success {
 sub server_accept_failure {
   my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
 
+#  print(
+#    "! Redirection from $heap->{local_addr}:$heap->{local_port} to ",
+#    "$heap->{remote_addr}:$heap->{remote_port} encountered $operation ",
+#    "error $errnum: $errstr\n"
+#  );
+
   delete $heap->{server_wheel} if $errnum == ENFILE or $errnum == EMFILE;
 }
 
@@ -202,21 +221,28 @@ sub run {
 
 =head1 NAME
 
-POE::Component::Proxy::MySQL - A POE MySQL proxy
+POE::Component::Server::MySQL - A MySQL POE Server
 
 =head1 DESCRIPTION
 
 This modules helps building a MySQL proxy in which you can write
-handler to deal with specific queries. It uses Moose and POE.
+handler to deal with specific queries.
+
+You can modifiy the query, write a specific response, relay a query
+or do wahtever you want within each handler.
+
+This is the evolution of POE::Component::DBIx::MyServer, it
+uses Moose and POE.
 
 =head1 SYNOPSYS
 
-First you create a server class that extends POE::Component::Proxy::MySQL.
+First you create a server class that extends POE::Component::Server::MySQL.
 
    package MyMySQL;
    use Moose;
    
-   extends 'POE::Component::Proxy::MySQL';
+   extends 'POE::Component::Server::MySQL';
+   with 'MooseX::Getopt';
 
 Then in a perl script you can instantiate your new server
 
@@ -227,7 +253,7 @@ Then in a perl script you can instantiate your new server
 In the MyMySQL namespace you can add roles which will act as handlers
 for your trapped queries:
 
-   package MyMySQL::Fortune;
+   package MyMySQL::OnSteroids;
    use MooseX::MethodAttributes::Role;
    
    sub fortune : Regexp('qr{fortune}io') {
@@ -242,11 +268,14 @@ for your trapped queries:
 
 =head1 AUTHORS
 
-Eriam Schaffter, C<eriam@cpan.org>.
+Eriam Schaffter, C<eriam@cpan.org> with original work 
+done by Philip Stoev in the DBIx::MyServer module.
 
 =head1 BUGS
 
-None that I know of.
+At least one, in specific cases the servers sends several 
+packets instead of a single one. It works fine with most clients
+but it crashes Toad for MySQL for example.
 
 =head1 COPYRIGHT
 
