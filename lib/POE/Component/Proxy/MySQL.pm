@@ -20,15 +20,15 @@ use POE::Component::Proxy::MySQL::Forwarder;
 
 
 
-has 'src_address'    => (is => 'rw', isa => 'Str');
-has 'src_port'       => (is => 'rw', isa => 'Int');
+has 'src_address'    => (is => 'rw', isa => 'Str', default => '127.0.0.1');
+has 'src_port'       => (is => 'rw', isa => 'Int', default => 23306);
 
-has 'dst_address'    => (is => 'rw', isa => 'Str');
-has 'dst_port'       => (is => 'rw', isa => 'Int');
+has 'dst_address'    => (is => 'rw', isa => 'Str', default => '127.0.0.1');
+has 'dst_port'       => (is => 'rw', isa => 'Int', default => 3306);
 
-has 'processes'      => (is => 'rw', isa => 'Int');
+has 'processes'      => (is => 'rw', isa => 'Int', default => 4);
 
-has 'conn_per_child' => (is => 'rw', isa => 'Int');
+has 'conn_per_child' => (is => 'rw', isa => 'Int', default => 4096);
 
 
 sub DEBUG {1}
@@ -36,15 +36,6 @@ sub DEBUG {1}
 sub BUILD {
 	my ($self, $opt) = @_;
 
-   $self->conn_per_child(4096)      unless $self->conn_per_child;
-
-   $self->src_port(23306)           unless $self->src_port;
-   $self->src_address('127.0.0.1')  unless $self->src_address;
-
-   $self->dst_port(5029)            unless $self->dst_port;
-   $self->dst_address('127.0.0.1')  unless $self->dst_address;
-   
-   $self->processes(4)              unless $self->processes;
    $self->processes($self->processes - 1);
    
    $self->processes(1) if $self->processes < 1;
@@ -210,7 +201,7 @@ sub run {
 
 =head1 NAME
 
-POE::Component::Server::MySQL - A MySQL POE Server
+POE::Component::Proxy::MySQL - A MySQL POE Proxy
 
 =head1 DESCRIPTION
 
@@ -242,12 +233,7 @@ Then in a perl script you can instantiate your new server
 In the MyMySQL namespace you can add roles which will act as handlers
 for your trapped queries:
 
-<<<<<<< HEAD
-   package MyMySQL::OnSteroids;
-   use MooseX::MethodAttributes::Role;
-=======
    package MyMySQL::Hello;
->>>>>>> 459e7750a9d1c15774d1277812b39237b5d40288
    
    use POE;
    use MooseX::MethodAttributes::Role;
