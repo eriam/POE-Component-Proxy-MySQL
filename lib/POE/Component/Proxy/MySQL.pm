@@ -39,22 +39,18 @@ sub BUILD {
 	my ($self, $opt) = @_;
 
    $self->processes($self->processes - 1);
-   
    $self->processes(1) if $self->processes < 1;
-   
-   print "Listen on ".$self->src_address.":".$self->src_port."\n";
-   print "Redirects to ".$self->dst_address.":".$self->dst_port."\n";
 
    POE::Session->create(
      object_states => [
          $self =>  { 
             _start         => '_server_start',
             _stop          => '_server_stop',
+            _do_fork       => '_do_fork',   
             accept_success => '_server_accept_success',
             accept_failure => '_server_accept_failure',   
             got_sig_int    => '_got_sig_int',
             got_sig_child  => '_got_sig_child',
-            _do_fork       => '_do_fork',   
             restart        => '_restart',    
             ticks          => '_ticks',   
          }
@@ -71,7 +67,7 @@ sub _server_start {
    my ($self, $heap, $session, $local_addr, $local_port, $remote_addr, $remote_port) =
     @_[OBJECT, HEAP, SESSION, ARG0, ARG1, ARG2, ARG3];
    
-   print "+ Redirecting $local_addr:$local_port to $remote_addr:$remote_port\n";
+   print "Redirecting $local_addr:$local_port to $remote_addr:$remote_port\n";
    
    $heap->{local_addr}     = $local_addr;
    $heap->{local_port}     = $local_port;
@@ -158,7 +154,6 @@ sub _do_fork {
          next;
       }
       
-      
       $heap->{connections_per_child}->{$$} = 0;
       $heap->{active_connections}->{$$} = 0;
    
@@ -240,10 +235,16 @@ for your trapped queries:
    use POE;
    use MooseX::MethodAttributes::Role;
    
-   sub fortune : Regexp('qr{Hello}io') {
-      my ($self) = $_[OBJECT];
-         
-      $self->client_send_results(['Hello'],[['World']]);
+   sub fortune : Regexp('qr{fortune}io') {
+      my ($self) = $_[OBJECT];   
+      
+      my $fortune = `fortune`;
+      chomp($fortune);
+      
+      $self->client_send_results(
+         ['fortune'],
+         [[$fortune]]
+      );
    
    }
 
@@ -262,12 +263,12 @@ and finally
    
    Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
    
-   mysql> hello();
-   +-------+
-   | Hello |
-   +-------+
-   | World |
-   +-------+
+   mysql> fortune();
+   +---------------------------------------------------------------------+
+   | fortune                                                             |
+   +---------------------------------------------------------------------+
+   | How sharper than a hound's tooth it is to have a thankless serpent. |
+   +---------------------------------------------------------------------+
    1 row in set (0,10 sec)
 
 =over 4
@@ -287,9 +288,7 @@ done by Philip Stoev in the DBIx::MyServer module.
 
 =head1 BUGS
 
-At least one, in specific cases the servers sends several 
-packets instead of a single one. It works fine with most clients
-but it crashes Toad for MySQL for example.
+None that I know.
 
 =head1 LICENSE
 
