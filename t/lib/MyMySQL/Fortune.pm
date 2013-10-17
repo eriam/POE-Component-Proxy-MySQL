@@ -9,7 +9,10 @@ sub fortune : Regexp('qr{fortune}io') {
    my $fortune = `fortune`;
    chomp($fortune);
    
-   $self->client_send_results(['fortune'],[[$fortune]]);
+   $self->client_send_results(
+      ['fortune'],
+      [[$fortune]]
+   );
 
 }
 

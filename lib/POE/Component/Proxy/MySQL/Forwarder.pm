@@ -8,11 +8,20 @@ use warnings;  # for kwalitee
 
 use Socket;
 use POSIX qw(errno_h);
-use POE qw( Wheel::ReadWrite Wheel::SocketFactory Filter::Stream );
-use MySQL::Packet qw(:test :encode :decode :COM :CLIENT :SERVER :debug);
-
+use POE qw( 
+   Wheel::ReadWrite 
+   Wheel::SocketFactory 
+   Filter::Stream 
+);
+use MySQL::Packet qw(
+   :encode 
+   :decode 
+   :COM 
+   :CLIENT 
+   :SERVER 
+   :debug
+);
 use Module::Find;
-
 use Data::Dumper;
 
 my $VERSION = '0.01_01';
@@ -715,44 +724,5 @@ sub _send_rows {
 	
 }
 
-
-=head1 NAME
-
-POE::Component::Proxy::MySQL::Forwarder - A POE MySQL proxy
-
-=head1 DESCRIPTION
-
-This is the client and server session.
-
-=over 4
-
-=item BUILD()
-
-=item client_send_error()
-
-=item client_send_ok()
-
-=item client_send_results()
-
-=item release_client()
-
-=item release_server()
-
-=back
-
-=head1 AUTHORS
-
-Eriam Schaffter, C<eriam@cpan.org>.
-
-=head1 BUGS
-
-None that I know of.
-
-=head1 LICENSE
-
-This program is free software, you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
-=cut
 
 1;

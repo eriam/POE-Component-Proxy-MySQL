@@ -2,7 +2,7 @@ package POE::Component::Proxy::MySQL;
 use Moose;
 use MooseX::MethodAttributes;
 
-our $VERSION = "0.03";
+our $VERSION = "0.04";
 
 use strict;    # for kwalitee
 use warnings;  # for kwalitee
@@ -11,11 +11,13 @@ with 'MooseX::Getopt';
 
 use Socket;
 use POSIX qw(errno_h);
-use MySQL::Packet qw(:encode :decode :COM :CLIENT :SERVER);
 use Data::Dumper;
 use Module::Find;
-use POE qw( Wheel::ReadWrite Wheel::SocketFactory Filter::Stream );
-
+use POE qw( 
+   Wheel::ReadWrite 
+   Wheel::SocketFactory 
+   Filter::Stream 
+);
 use POE::Component::Proxy::MySQL::Forwarder;
 
 
